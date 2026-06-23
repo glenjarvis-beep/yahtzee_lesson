@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yahtzee Probability Simulator — Year 5</title>
+<style>
+  :root {
+    --green: #1B5E20;
+    --green-mid: #2E7D32;
+    --green-light: #C8E6C9;
+    --green-pale: #F1F8E9;
+    --accent: #F9A825;
+    --accent-light: #FFF9C4;
+    --red: #C62828;
+    --grey: #546E7A;
+    --bg: #F5F7F5;
+    --white: #FFFFFF;
+    --shadow: 0 2px 12px rgba(0,0,0,0.10);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: var(--bg);
+    min-height: 100vh;
+    color: #1a1a1a;
+  }
+
+  header {
+    background: var(--green);
+    color: white;
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+  }
+  header h1 { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.5px; }
+  header p { font-size: 0.95rem; opacity: 0.85; margin-top: 2px; }
+  .header-badge {
+    background: var(--accent);
+    color: #1a1a1a;
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 6px 14px;
+    border-radius: 20px;
+  }
+
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 20px;
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 20px;
+  }
+
+  .card {
+    background: var(--white);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+  }
+  .card h2 {
+    font-size: 1.1rem;
+    color: var(--green);
+    font-weight: 700;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--green-light);
+  }
+
+  /* DICE */
+  .dice-area {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    margin: 18px 0 10px;
+    flex-wrap: wrap;
+  }
+  .die-wrapper { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .die {
+    width: 90px; height: 90px;
+    background: white;
+    border-radius: 16px;
+    border: 3px solid var(--green);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    padding: 10px;
+    gap: 4px;
+    cursor: pointer;
+    transition: transform 0.08s, box-shadow 0.15s, border-color 0.15s;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.13);
+    position: relative;
+  }
+  .die.held {
+    border-color: var(--accent);
+    background: var(--accent-light);
+    box-shadow: 0 0 0 3px var(--accent), 0 3px 10px rgba(249,168,37,0.25);
+  }
+  .die.rolling { animation: roll 0.4s ease; }
+  @keyframes roll {
+    0%   { transform: rotate(0deg) scale(1); }
+    25%  { transform: rotate(-12deg) scale(1.08); }
+    50%  { transform: rotate(10deg) scale(0.95); }
+    75%  { transform: rotate(-6deg) scale(1.04); }
+    100% { transform: rotate(0deg) scale(1); }
+  }
+  .dot {
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    background: var(--green);
+  }
+  .dot.hidden { background: transparent; }
+  .held-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    height: 16px;
+  }
+
+  /* Die dot patterns — which positions are filled for each face value */
+  /* pos: 0=TL 1=TC 2=TR 3=ML 4=MC 5=MR 6=BL 7=BC 8=BR */
+  .die-value { display: none; }
+
+  .controls {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+  button {
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 700;
+    padding: 12px 26px;
+    cursor: pointer;
+    transition: transform 0.08s, opacity 0.15s;
+  }
+  button:active { transform: scale(0.96); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-roll { background: var(--green); color: white; font-size: 1.1rem; padding: 14px 36px; }
+  .btn-score { background: var(--accent); color: #1a1a1a; }
+  .btn-reset { background: #ECEFF1; color: var(--grey); }
+  .btn-hold-all { background: var(--green-light); color: var(--green); }
+
+  .roll-info {
+    text-align: center;
+    font-size: 0.95rem;
+    color: var(--grey);
+    margin-top: 8px;
+  }
+  .roll-info span { font-weight: 700; color: var(--green); }
+
+  /* OUTCOME BANNER */
+  .outcome-banner {
+    margin-top: 14px;
+    border-radius: 10px;
+    padding: 12px 18px;
+    background: var(--green-pale);
+    border-left: 5px solid var(--green-mid);
+    font-size: 1rem;
+    min-height: 56px;
+    transition: background 0.3s;
+  }
+  .outcome-banner .outcome-title {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--green);
+  }
+  .outcome-banner.yahtzee {
+    background: var(--accent-light);
+    border-color: var(--accent);
+    animation: pulse 0.7s ease;
+  }
+  .outcome-banner.yahtzee .outcome-title { color: #E65100; }
+  @keyframes pulse {
+    0%,100% { transform: scale(1); }
+    40% { transform: scale(1.025); }
+  }
+  .hint { font-size: 0.85rem; color: var(--grey); margin-top: 4px; }
+
+  /* PROBABILITY BOX */
+  .prob-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .prob-item {
+    background: var(--green-pale);
+    border-radius: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--green-light);
+  }
+  .prob-item .cat-name { font-size: 0.8rem; font-weight: 700; color: var(--green-mid); }
+  .prob-item .cat-prob { font-size: 1.05rem; font-weight: 700; color: var(--green); margin-top: 2px; }
+  .prob-item .cat-desc { font-size: 0.72rem; color: var(--grey); margin-top: 1px; }
+  .prob-item.highlight {
+    background: var(--accent-light);
+    border-color: var(--accent);
+  }
+  .prob-item.highlight .cat-name { color: #E65100; }
+  .prob-item.highlight .cat-prob { color: #BF360C; }
+
+  /* CLASS TALLY */
+  .tally-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .tally-table th {
+    background: var(--green);
+    color: white;
+    padding: 7px 10px;
+    text-align: left;
+    font-weight: 700;
+  }
+  .tally-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--green-light);
+    vertical-align: middle;
+  }
+  .tally-table tr:nth-child(even) td { background: var(--green-pale); }
+  .tally-bar-wrap { background: #E0E0E0; border-radius: 4px; height: 10px; width: 100%; overflow: hidden; }
+  .tally-bar { height: 100%; background: var(--green-mid); border-radius: 4px; transition: width 0.5s; }
+  .tally-bar.yahtzee-bar { background: var(--accent); }
+
+  .stats-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .stat-box {
+    flex: 1;
+    background: var(--green-pale);
+    border-radius: 10px;
+    padding: 10px 12px;
+    text-align: center;
+    border: 1px solid var(--green-light);
+  }
+  .stat-box .stat-val { font-size: 1.6rem; font-weight: 700; color: var(--green); line-height: 1; }
+  .stat-box .stat-label { font-size: 0.75rem; color: var(--grey); margin-top: 3px; }
+
+  .sidebar { display: flex; flex-direction: column; gap: 18px; }
+
+  .question-box {
+    background: var(--green-pale);
+    border-left: 4px solid var(--green-mid);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 0.88rem;
+    color: #2d2d2d;
+    line-height: 1.5;
+  }
+  .question-box strong { color: var(--green); display: block; margin-bottom: 4px; }
+
+  .footer-note {
+    grid-column: 1 / -1;
+    text-align: center;
+    font-size: 0.82rem;
+    color: var(--grey);
+    padding-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🎲 Yahtzee Probability Simulator</h1>
+    <p>Year 5 Mathematics — Chance & Probability</p>
+  </div>
+  <div class="header-badge">Little River Primary</div>
+</header>
+
+<main>
+  <!-- LEFT: Dice + Controls -->
+  <div>
+    <div class="card">
+      <h2>Roll the Dice</h2>
+      <div class="dice-area" id="diceArea"></div>
+      <div class="roll-info">Rolls this turn: <span id="rollCount">0</span> / 3 &nbsp;|&nbsp; Click a die to hold/unhold it</div>
+      <div class="controls">
+        <button class="btn-roll" id="btnRoll" onclick="rollDice()">🎲 Roll!</button>
+        <button class="btn-hold-all" onclick="holdAll()">Hold All</button>
+        <button class="btn-score" id="btnScore" onclick="scoreRound()" disabled>✅ Record Score</button>
+        <button class="btn-reset" onclick="resetTurn()">↩ New Turn</button>
+      </div>
+      <div class="outcome-banner" id="outcomeBanner">
+        <div class="outcome-title">Press Roll to begin!</div>
+        <div class="hint">Hold dice you want to keep, then roll again (up to 3 rolls per turn)</div>
+      </div>
+    </div>
+
+    <!-- Probability reference -->
+    <div class="card" style="margin-top:18px;">
+      <h2>Theoretical Probability — What Should Happen?</h2>
+      <div class="prob-grid" id="probGrid"></div>
+      <p style="font-size:0.78rem;color:var(--grey);margin-top:10px;">* These are approximate first-roll probabilities (before any holds). Actual Yahtzee probability across a full 3-roll turn is about 4.6%.</p>
+    </div>
+  </div>
+
+  <!-- RIGHT: Sidebar -->
+  <div class="sidebar">
+    <div class="card">
+      <h2>📊 Class Session Tally</h2>
+      <div class="stats-row">
+        <div class="stat-box">
+          <div class="stat-val" id="statTurns">0</div>
+          <div class="stat-label">Turns Recorded</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="statYahtzee" style="color:var(--accent)">0</div>
+          <div class="stat-label">Yahtzees! 🎉</div>
+        </div>
+      </div>
+      <table class="tally-table" id="tallyTable">
+        <thead><tr><th>Outcome</th><th>Count</th><th>Exp. %</th><th>Bar</th></tr></thead>
+        <tbody id="tallyBody"></tbody>
+      </table>
+      <button class="btn-reset" style="margin-top:12px;width:100%;font-size:0.85rem;" onclick="resetTally()">🗑 Reset Class Tally</button>
+    </div>
+
+    <div class="card">
+      <h2>💬 Discussion Prompts</h2>
+      <div class="question-box">
+        <strong>Ask the class:</strong>
+        "We just rolled — what's the probability of getting this exact outcome again?"
+      </div>
+      <div class="question-box" style="margin-top:10px;">
+        <strong>Think about it:</strong>
+        "If we recorded 100 turns, how many Yahtzees would probability theory predict?"
+      </div>
+      <div class="question-box" style="margin-top:10px;">
+        <strong>Deeper thinking:</strong>
+        "Why do our real results sometimes differ from what the maths says should happen?"
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📐 Key Probability Facts</h2>
+      <div style="font-size:0.85rem;line-height:1.8;">
+        <div>🎲 P(one specific number on 1 die) = <strong>1/6 ≈ 16.7%</strong></div>
+        <div>🎲 P(any even number on 1 die) = <strong>3/6 = 50%</strong></div>
+        <div>🎲 P(Yahtzee on first roll only) = <strong>1/1296 ≈ 0.08%</strong></div>
+        <div>🎲 P(Yahtzee across a 3-roll turn) = <strong>≈ 4.6%</strong></div>
+        <div style="margin-top:8px;font-size:0.78rem;color:var(--grey)">More trials → results closer to theory (Law of Large Numbers)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">Simulator for classroom use — Little River Primary School | Year 5 Mathematics</div>
+</main>
+
+<script>
+// --- Die dot layouts: true = dot shown ---
+const DOT_PATTERNS = {
+  1: [false,false,false, false,true,false, false,false,false],
+  2: [true,false,false,  false,false,false, false,false,true],
+  3: [true,false,false,  false,true,false,  false,false,true],
+  4: [true,false,true,   false,false,false,  true,false,true],
+  5: [true,false,true,   false,true,false,   true,false,true],
+  6: [true,false,true,   true,false,true,    true,false,true],
+};
+
+let dice = [1,1,1,1,1];
+let held = [false,false,false,false,false];
+let rollCount = 0;
+let hasRolled = false;
+
+// Class tally
+const CATEGORIES = [
+  { name:"One Pair", key:"pair", theory: 42.3 },
+  { name:"Two Pairs", key:"twopair", theory: 23.3 },
+  { name:"Three of a Kind", key:"three", theory: 15.4 },
+  { name:"Full House", key:"fullhouse", theory: 3.9 },
+  { name:"Four of a Kind", key:"four", theory: 1.9 },
+  { name:"Small Straight", key:"sstraight", theory: 12.3 },
+  { name:"Large Straight", key:"lstraight", theory: 3.1 },
+  { name:"YAHTZEE! 🎉", key:"yahtzee", theory: 0.08 },
+  { name:"Chance Only", key:"chance", theory: 0 },
+];
+
+let tally = {};
+CATEGORIES.forEach(c => tally[c.key] = 0);
+let totalTurns = 0;
+
+// --- Render ---
+function renderDice() {
+  const area = document.getElementById('diceArea');
+  area.innerHTML = '';
+  dice.forEach((val, i) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'die-wrapper';
+
+    const die = document.createElement('div');
+    die.className = 'die' + (held[i] ? ' held' : '');
+    die.onclick = () => toggleHold(i);
+    die.title = held[i] ? 'Click to unhold' : 'Click to hold';
+
+    const pattern = DOT_PATTERNS[val];
+    pattern.forEach(show => {
+      const dot = document.createElement('div');
+      dot.className = 'dot' + (show ? '' : ' hidden');
+      die.appendChild(dot);
+    });
+
+    const label = document.createElement('div');
+    label.className = 'held-label';
+    label.textContent = held[i] ? 'HELD' : '';
+
+    wrapper.appendChild(die);
+    wrapper.appendChild(label);
+    area.appendChild(wrapper);
+  });
+}
+
+function toggleHold(i) {
+  if (!hasRolled) return;
+  if (rollCount >= 3) return;
+  held[i] = !held[i];
+  renderDice();
+}
+
+function holdAll() {
+  if (!hasRolled) return;
+  held = held.map(() => true);
+  renderDice();
+}
+
+function rollDice() {
+  if (rollCount >= 3) return;
+  rollCount++;
+  hasRolled = true;
+
+  const dieEls = document.querySelectorAll('.die');
+  dieEls.forEach((el, i) => {
+    if (!held[i]) el.classList.add('rolling');
+  });
+
+  setTimeout(() => {
+    dice = dice.map((v, i) => held[i] ? v : Math.ceil(Math.random() * 6));
+    dieEls.forEach(el => el.classList.remove('rolling'));
+    renderDice();
+    document.getElementById('rollCount').textContent = rollCount;
+    updateOutcome();
+    document.getElementById('btnScore').disabled = false;
+    if (rollCount >= 3) {
+      document.getElementById('btnRoll').disabled = true;
+    }
+  }, 420);
+}
+
+function resetTurn() {
+  dice = [1,1,1,1,1];
+  held = [false,false,false,false,false];
+  rollCount = 0;
+  hasRolled = false;
+  document.getElementById('rollCount').textContent = '0';
+  document.getElementById('btnRoll').disabled = false;
+  document.getElementById('btnScore').disabled = true;
+  renderDice();
+  const banner = document.getElementById('outcomeBanner');
+  banner.className = 'outcome-banner';
+  banner.innerHTML = `<div class="outcome-title">Press Roll to begin!</div><div class="hint">Hold dice you want to keep, then roll again (up to 3 rolls per turn)</div>`;
+}
+
+function analyse(d) {
+  const counts = {};
+  d.forEach(v => counts[v] = (counts[v] || 0) + 1);
+  const vals = Object.values(counts).sort((a,b) => b-a);
+  const sorted = [...d].sort();
+  const isSeq4 = v => [1,2,3,4,5,6].some(start => [0,1,2,3].every(j => sorted.includes(start+j)));
+  const isSeq5 = v => sorted.join(',') === '1,2,3,4,5' || sorted.join(',') === '2,3,4,5,6';
+
+  if (vals[0] === 5) return { key:'yahtzee', label:'YAHTZEE! 🎉', desc:'All 5 dice the same — incredibly rare!' };
+  if (vals[0] === 4) return { key:'four', label:'Four of a Kind', desc:'Four dice the same!' };
+  if (vals[0] === 3 && vals[1] === 2) return { key:'fullhouse', label:'Full House', desc:'Three of a kind + a pair' };
+  if (isSeq5(sorted)) return { key:'lstraight', label:'Large Straight', desc:'Five in a row — 1-2-3-4-5 or 2-3-4-5-6' };
+  if (vals[0] === 3) return { key:'three', label:'Three of a Kind', desc:'Three dice the same' };
+  if (isSeq4(sorted)) return { key:'sstraight', label:'Small Straight', desc:'Four dice in a row' };
+  if (vals[0] === 2 && vals[1] === 2) return { key:'twopair', label:'Two Pairs', desc:'Two different pairs' };
+  if (vals[0] === 2) return { key:'pair', label:'One Pair', desc:'Two dice the same' };
+  return { key:'chance', label:'Chance Only', desc:'No combination — score as chance total' };
+}
+
+function updateOutcome() {
+  const result = analyse(dice);
+  const banner = document.getElementById('outcomeBanner');
+  banner.className = 'outcome-banner' + (result.key === 'yahtzee' ? ' yahtzee' : '');
+  const theory = CATEGORIES.find(c => c.key === result.key);
+  const theoryText = theory && theory.theory > 0 ? ` (theoretical probability: ~${theory.theory}%)` : '';
+  banner.innerHTML = `<div class="outcome-title">${result.label}</div><div class="hint">${result.desc}${theoryText}</div>`;
+
+  // highlight prob grid
+  document.querySelectorAll('.prob-item').forEach(el => {
+    el.classList.toggle('highlight', el.dataset.key === result.key);
+  });
+}
+
+function scoreRound() {
+  const result = analyse(dice);
+  tally[result.key]++;
+  totalTurns++;
+  renderTally();
+  resetTurn();
+}
+
+function resetTally() {
+  CATEGORIES.forEach(c => tally[c.key] = 0);
+  totalTurns = 0;
+  renderTally();
+}
+
+function renderTally() {
+  document.getElementById('statTurns').textContent = totalTurns;
+  document.getElementById('statYahtzee').textContent = tally['yahtzee'];
+
+  const body = document.getElementById('tallyBody');
+  const max = Math.max(...Object.values(tally), 1);
+  body.innerHTML = CATEGORIES.map(cat => {
+    const count = tally[cat.key];
+    const pct = totalTurns > 0 ? ((count / totalTurns) * 100).toFixed(1) : '—';
+    const barW = totalTurns > 0 ? Math.round((count / Math.max(max,1)) * 100) : 0;
+    const isY = cat.key === 'yahtzee';
+    return `<tr>
+      <td>${cat.name}</td>
+      <td><strong>${count}</strong></td>
+      <td>${pct}%</td>
+      <td><div class="tally-bar-wrap"><div class="tally-bar${isY?' yahtzee-bar':''}" style="width:${barW}%"></div></div></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderProbGrid() {
+  const grid = document.getElementById('probGrid');
+  grid.innerHTML = CATEGORIES.filter(c => c.theory > 0).map(cat => `
+    <div class="prob-item" data-key="${cat.key}">
+      <div class="cat-name">${cat.name}</div>
+      <div class="cat-prob">~${cat.theory}%</div>
+      <div class="cat-desc">${cat.theory < 1 ? 'Very rare!' : cat.theory > 30 ? 'Fairly common' : ''}</div>
+    </div>
+  `).join('');
+}
+
+// Init
+renderDice();
+renderProbGrid();
+renderTally();
+</script>
+</body>
+</html>
